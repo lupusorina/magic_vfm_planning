@@ -2,6 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 def clip_vector(vector: np.ndarray, hypercube: np.ndarray) -> np.ndarray:
     return np.clip(vector, hypercube[:, 0], hypercube[:, 1])
@@ -15,10 +16,13 @@ class CEM:
         self.num_elite = int(num_elite/100.0 * num_particles)
         self.mean = mean # (horizon x action_dim)
         self.cov = cov # (horizon x action_dim x action_dim)
-        self.cov_noise = 1e-2
+        self.cov_noise = 1e-0
         self.generator = np.random.default_rng(seed)
         self.smoothing = smoothing
         self.max_std_stop = max_std_stop
+        self.action_folders = 'actions'
+        if not os.path.exists(self.action_folders):
+            os.makedirs(self.action_folders)
 
     def optimize(self, initial_state, system, dt, goal, damping_map=None, terrain_map=None, NN=None):
         action_dim = system.udim
@@ -42,16 +46,16 @@ class CEM:
                 for j in range(self.horizon):
                     action = particles[i, j, :]
                     if damping_map is not None:
-                        next_state, _, _ = system.dynamics(state, action, dt, damping_map)
+                        next_state = system.dynamics(state, action, dt, damping_map)
                     else:
-                        next_state, _, _ = system.dynamics(state, action, dt)
+                        next_state = system.dynamics(state, action, dt)
                         
                     if NN is not None:
-                        next_state, _, _ = system.dynamics(state, action, dt, terrain_map, NN)
+                        next_state = system.dynamics(state, action, dt, terrain_map, NN)
                         
-                    value += system.reward(state, goal)
+                    value += system.reward(state, goal, action)
                     state = next_state.copy()
-                values[i] = value
+                values[i] = value/float(self.horizon)
             elite_indices = np.argsort(values)[-self.num_elite:]
             elite_particles = particles[elite_indices, :, :] # (num_elite x horizon x action_dim)
             
@@ -62,15 +66,17 @@ class CEM:
             if values[elite_indices[-1]] > best_value:
                 best_value = values[elite_indices[-1]]
                 best_action = elite_particles[-1]
+            print('best_value:', best_value)
             self.mean = mean
             self.cov = cov + np.array([self.cov_noise * np.eye(action_dim) for _ in range(self.horizon)])
             best_actions[iter_nb] = best_action
+            np.save(os.path.join(self.action_folders, 'best_action' + str(iter_nb) + '.npy'), best_action)
             # check cov for convergence.
             stds = np.sqrt(np.linalg.eigvalsh(cov))
-            if np.amax(stds) <= self.max_std_stop:
-                print("Converged at iteration", iter_nb)
-                break
-        return best_action, best_actions
+            # if np.amax(stds) <= self.max_std_stop:
+            #     print("Converged at iteration", iter_nb)
+            #     break
+        return best_action, best_actions, best_value
 
     def computecovariance(self, particles, mean):
         # particles is (num_particles x horizon x action_dim)
