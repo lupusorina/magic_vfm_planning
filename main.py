@@ -342,7 +342,7 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(1, 2, figsize=(12, 6))
     ax[0].imshow(rgb_map)
     ax[1].imshow(damping_map, cmap='jet')
-    plt.savefig(args.plots_folder + 'map.pdf', dpi=200, transparent=True)
+    plt.savefig(args.plots_folder + 'map.pdf', dpi=200)
 
     fig, ax = plt.subplots()
     ax.imshow(rgb_map, alpha=0.5)
