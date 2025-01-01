@@ -1,0 +1,6 @@
+num_epochs: 3000
+learning_rate: 0.005
+hidden_size: 200 # used rule of thumb (input+output)/2
+input_size: 386
+batch_size: 70
+dim_a: 4
